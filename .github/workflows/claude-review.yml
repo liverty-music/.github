@@ -1,0 +1,83 @@
+name: Reusable Claude Review
+
+on:
+  workflow_call:
+    inputs:
+      additional_focus:
+        description: >
+          Optional per-repo review focus text appended to the Claude prompt
+          (e.g., "Go conventions, table-driven tests").
+        type: string
+        required: false
+        default: ""
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+  checks: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Claude review
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: https://github.com/anthropics/claude-code.git
+          plugins: code-review@claude-code-plugins
+          prompt: |
+            Step 1: Run `/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment`
+                    to post the detailed sticky comment.
+            ${{ inputs.additional_focus && format('Additional focus: {0}', inputs.additional_focus) || '' }}
+
+            Step 2: After posting the comment, write `/tmp/claude-verdict.json`
+                    with this exact JSON shape:
+                      { "verdict": "pass" }
+                    if zero high-signal issues were found, or
+                      { "verdict": "fail", "count": <number>, "summary": "<one-line>" }
+                    if issues were found.
+          claude_args: |
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),Write,mcp__github_inline_comment__create_inline_comment"
+
+      - name: Read verdict file
+        id: verdict
+        if: always()
+        run: |
+          if [ -f /tmp/claude-verdict.json ]; then
+            echo "json=$(cat /tmp/claude-verdict.json)" >> "$GITHUB_OUTPUT"
+          else
+            echo 'json={"verdict":"neutral","summary":"verdict file missing"}' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish Claude review Check Run
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const v = JSON.parse(`${{ steps.verdict.outputs.json }}`);
+            const conclusion =
+              v.verdict === 'pass' ? 'success' :
+              v.verdict === 'fail' ? 'failure' : 'neutral';
+            const title =
+              v.verdict === 'pass' ? 'No issues found' :
+              v.verdict === 'fail' ? `${v.count} issue(s) found` :
+                                     'No verdict produced';
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Claude review',
+              head_sha: context.payload.pull_request.head.sha,
+              status: 'completed',
+              conclusion,
+              output: {
+                title,
+                summary: v.summary || 'See sticky PR comment for details.',
+              },
+            });

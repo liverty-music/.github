@@ -25,6 +25,11 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Run Claude review
         id: claude
         uses: anthropics/claude-code-action@v1

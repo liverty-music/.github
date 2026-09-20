@@ -33,6 +33,11 @@
       "schedule": ["before 6am on the first day of the month"]
     },
     {
+      "description": "Keep @biomejs/biome on one cadence across the org. frontend and cloud-provisioning pin it to the same exact version, and Renovate cannot group across repositories — so the two will always be two pull requests. Putting the schedule here rather than in each repository's config is what keeps them landing close together: a per-repo schedule change could silently desynchronise the formatter, and a formatter mismatch rewrites files on every save.",
+      "matchPackageNames": ["@biomejs/biome"],
+      "schedule": ["before 6am on saturday"]
+    },
+    {
       "description": "PERMANENT: the .github repository never automerges. It has no GitHubRepositoryComponent in cloud-provisioning, so it has no branch protection, no required status checks and no CI of its own — an automerge there would land with no gate whatsoever, which is the opposite of the policy this configuration implements. Renovate still raises pull requests for its GitHub Actions; a human merges them. Removing this rule requires first giving .github its own CI and protection (design D11, follow-up 12.4).",
       "matchRepositories": ["liverty-music/.github"],
       "automerge": false

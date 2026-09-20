@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Organization-wide Renovate policy for liverty-music, inherited by every repository in the org.",
+    "Renovate auto-discovers this file in the org's .github repository, so a policy change here takes effect everywhere without editing each repository. Per-repository renovate.json files add only what is specific to their stack.",
+    "Built by extending config:best-practices rather than assembling rules by hand: a locally copied group does not learn about packages added upstream later, so it narrows silently while continuing to look correct. See the OpenSpec change `automate-dependency-updates`, design D14."
+  ],
+  "extends": ["config:best-practices"],
+  "timezone": "Asia/Tokyo",
+  "dependencyDashboard": true,
+
+  "automerge": false,
+
+  "prConcurrentLimit": 10,
+
+  "rebaseWhen": "behind-base-branch",
+
+  "schedule": ["before 6am on saturday"],
+
+  "ignorePaths": [
+    "**/base/charts/**"
+  ],
+
+  "packageRules": [
+    {
+      "description": "Release-age delay, stated explicitly so it survives a schedule change. config:best-practices brings security:minimumReleaseAgeNpm, which covers npm only; these are the other datasources this org automerges, and each is equally reachable by a compromised maintainer account. NOTE: this delay is NOT bypassed for vulnerability fixes. Renovate's vulnerability path ignores schedule and the concurrency limits, but not minimumReleaseAge. That is deliberate and left as-is: a delay exists precisely because a release claiming to be a security fix can itself be the attack. A genuinely urgent fix is merged by hand — see the runbook.",
+      "matchDatasources": ["go", "docker", "github-releases", "github-tags"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Monthly cadence for the slow-moving, high-fan-out axes. Weekly proposals for these produce churn out of proportion to how often they actually matter.",
+      "matchManagers": ["github-actions", "dockerfile", "docker-compose", "mise"],
+      "schedule": ["before 6am on the first day of the month"]
+    },
+    {
+      "description": "PERMANENT: the .github repository never automerges. It has no GitHubRepositoryComponent in cloud-provisioning, so it has no branch protection, no required status checks and no CI of its own — an automerge there would land with no gate whatsoever, which is the opposite of the policy this configuration implements. Renovate still raises pull requests for its GitHub Actions; a human merges them. Removing this rule requires first giving .github its own CI and protection (design D11, follow-up 12.4).",
+      "matchRepositories": ["liverty-music/.github"],
+      "automerge": false
+    }
+  ]
+}

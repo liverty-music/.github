@@ -83,10 +83,49 @@ pressure, and it will outlive the incident.
 
 ---
 
+## A BSR-generated Go module needs updating
+
+**Why:** same root cause as `buf.lock` below, different symptom. The
+`buf.build/gen/go/**` modules are ordinary `gomod` entries, so Renovate *reads*
+them — but their version format defeats the lookup.
+`v1.20.0-20260826021924-0ff29b2b0335.1` resembles a Go pseudo-version, so
+Renovate splits the embedded commit out as a digest and then cannot resolve a
+new one, the module being generated output with no repository behind it.
+
+They are disabled rather than left failing, because an axis that looks
+automated while proposing nothing is indistinguishable from one that is up to
+date.
+
+`liverty-music/schema/*` is a different case and needs nothing here — it is
+advanced by the OpenSpec change that alters the schema, together with the code
+migration, and `backend` and `frontend` must land on the same build.
+
+**What to do** for `pocketsign/apis/*`, periodically:
+
+```bash
+cd backend
+go get buf.build/gen/go/pocketsign/apis/connectrpc/go@latest
+go get buf.build/gen/go/pocketsign/apis/protocolbuffers/go@latest
+go mod tidy
+make check
+```
+
+This is a third-party schema on someone else's cadence, so falling behind is
+the risk here, not the safeguard. Both modules stay on the dependency dashboard
+as disabled-with-an-update-available, so the dashboard is where you notice.
+
+> If Renovate ever gains Buf Schema Registry support, re-enable `pocketsign`
+> and leave `liverty-music/schema` excluded. The two are disabled for opposite
+> reasons — one because automating it does not work, the other because
+> automating it would be wrong.
+
+---
+
 ## `buf.lock` needs updating
 
-**Why:** this is the one dependency axis with no automation at all. Renovate
-ships no Buf Schema Registry manager or datasource, and `buf.lock` records
+**Why:** one of two axes with no automation, both rooted in the Buf Schema
+Registry (the other is above). Renovate ships no BSR manager or datasource, and
+`buf.lock` records
 registry commit identifiers rather than versions, so no generic mechanism
 applies either. Nothing will raise a PR and nothing will appear on the
 dashboard.
@@ -122,8 +161,10 @@ and bumping them independently opens a skew window with the migration undone.
 Treat the dashboard entry as a prompt to ask whether that OpenSpec change
 stalled.
 
-`buf.build/gen/go/pocketsign/apis/*` is different — third-party, on someone
-else's cadence, and updated normally.
+`buf.build/gen/go/pocketsign/apis/*` also appears there, and is a DIFFERENT
+case: it is disabled because Renovate cannot read the BSR version format, not
+because it should not be bumped. Seeing it here IS the prompt to bump it — see
+"A BSR-generated Go module needs updating" above.
 
 ---
 

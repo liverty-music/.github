@@ -5,7 +5,7 @@
     "Renovate auto-discovers this file in the org's .github repository, so a policy change here takes effect everywhere without editing each repository. Per-repository renovate.json files add only what is specific to their stack.",
     "Built by extending config:best-practices rather than assembling rules by hand: a locally copied group does not learn about packages added upstream later, so it narrows silently while continuing to look correct. See the OpenSpec change `automate-dependency-updates`, design D14.",
     "The recurring human actions this policy implies — regenerating visual baselines after a Playwright bump, reviewing a Pulumi preview, handling an urgent fix held by the release-age delay, updating buf.lock by hand — are documented in renovate-runbook.md next to this file.",
-    "TEMPORARY — SCHEDULING IS OFF. Every `schedule` in this file was removed so the observation cycle (OpenSpec change `automate-dependency-updates`, tasks 9.1-9.5) can run on the day it was enabled rather than waiting for the next Saturday. REVERT THIS COMMIT once the observation is done, which restores the weekly Saturday cadence, the monthly cadence for GitHub Actions / Docker / mise, and the shared biome cadence. Scheduling is noise control, not a safety control — the safety controls are `automerge: false` and the 3-day `minimumReleaseAge`, and BOTH remain in force while this is off."
+    "The observation cycle this schedule was briefly lifted for is complete. It corrected four assumptions that could only be checked by running Renovate: `group:pulumi` does NOT group the Pulumi providers (they are grouped locally now, as noise reduction — they are not version-coupled); BSR-generated Go modules cannot be looked up at all; our own container images were being proposed for update, which would have been a deployment; and `helpers:pinGitHubActionDigests` was pinning our OWN reusable workflow, severing the `@main` reference it depends on. What the cycle CONFIRMED: `group:monorepos` works for Vitest, OpenTelemetry JS and the Node family (`node` + `@types/node` in one pull request), the Playwright custom manager matches all three of its locations, and Aurelia stays on `2.0.0-rc.2` without a local rule — so none was written."
   ],
   "extends": [
     "config:best-practices"
@@ -15,6 +15,9 @@
   "automerge": false,
   "prConcurrentLimit": 10,
   "rebaseWhen": "behind-base-branch",
+  "schedule": [
+    "before 6am on saturday"
+  ],
   "ignorePaths": [
     "**/base/charts/**"
   ],
@@ -36,12 +39,18 @@
         "dockerfile",
         "docker-compose",
         "mise"
+      ],
+      "schedule": [
+        "before 6am on the first day of the month"
       ]
     },
     {
       "description": "Keep @biomejs/biome on one cadence across the org. frontend and cloud-provisioning pin it to the same exact version, and Renovate cannot group across repositories — so the two will always be two pull requests. Putting the schedule here rather than in each repository's config is what keeps them landing close together: a per-repo schedule change could silently desynchronise the formatter, and a formatter mismatch rewrites files on every save.",
       "matchPackageNames": [
         "@biomejs/biome"
+      ],
+      "schedule": [
+        "before 6am on saturday"
       ]
     },
     {

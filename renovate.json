@@ -1,0 +1,9 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "This repository's OWN Renovate config. Distinct from `renovate-config.json` beside it, which is the organization preset the other repositories extend — Renovate does not treat that file as a repository config, so without this one `.github` is not covered by its own policy.",
+    "It exists so the inheritance is explicit and visible in the repository, rather than depending on whether Renovate applies the organization default to a repository that has no config of its own. It also lets the Mend app run with `requireConfig=required`, which keeps repositories without a Renovate config — such as `demo-repository` — out of scope.",
+    "There are no local rules and there should not be: `.github` consumes GitHub Actions only, which `config:best-practices` already pins to digests and schedules monthly. Its permanent automerge exclusion lives in the org preset (see design D11), NOT here, because the reason is organizational — this repository has no branch protection and no CI, so an automerge would land with no gate at all — and keeping it there means it cannot be lifted by editing this file alone."
+  ],
+  "extends": ["local>liverty-music/.github:renovate-config"]
+}

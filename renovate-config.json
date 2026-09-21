@@ -45,6 +45,13 @@
       ]
     },
     {
+      "description": "Do NOT pin liverty-music's own Actions and reusable workflows to a SHA. `helpers:pinGitHubActionDigests` (from config:best-practices) pins every `uses:` reference it finds, and it caught `liverty-music/.github/.github/workflows/claude-review.yml@main` in all three repositories that consume it. That reference is `@main` deliberately: the whole point of a reusable workflow is that fixing it in one place reaches every consumer, and freezing it to a SHA severs exactly that. The security argument for pinning does not apply either — pinning protects against a third party repointing a tag at code we have not read, and this is our own code under our own review. The capability states the exemption directly: \"Actions published from within the liverty-music organization are exempt, as their contents are already under this project's control.\"",
+      "matchPackageNames": [
+        "liverty-music/**"
+      ],
+      "pinDigests": false
+    },
+    {
       "description": "PERMANENT: the .github repository never automerges. It has no GitHubRepositoryComponent in cloud-provisioning, so it has no branch protection, no required status checks and no CI of its own — an automerge there would land with no gate whatsoever, which is the opposite of the policy this configuration implements. Renovate still raises pull requests for its GitHub Actions; a human merges them. Removing this rule requires first giving .github its own CI and protection (design D11, follow-up 12.4).",
       "matchRepositories": [
         "liverty-music/.github"

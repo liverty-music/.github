@@ -58,6 +58,27 @@ Read the resource summary. Replacements and deletions are the ones that matter;
 instance. If anything would be replaced or deleted, do not merge — work out why
 a provider bump wants to do that first.
 
+**Two resources always show as `~ update`, on every preview, including one with
+no changes at all:**
+
+```
+~ organizer-media-backend-bucket   gcp:compute/backendBucket    update
+~ dashboard-zitadel-observability  gcp:monitoring/dashboard     update
+```
+
+They are a perpetual diff — applying them does not settle them, and they
+reappear on the next preview immediately afterwards. Measured on
+2026-09-22: a `pulumi up` updated both, and a preview taken minutes later
+listed both again.
+
+So the baseline is two, not zero. Compare a pull request's preview against
+that baseline rather than against an empty one, and treat anything beyond
+those two as attributable to the pull request.
+
+That is a workaround, not a resolution. A reviewer who learns to read two
+updates as normal is being trained out of the signal this whole control
+depends on, and the right fix is to find why those two never converge.
+
 **Never** widen the Pulumi Cloud trigger `paths` to make previews run on
 dependency PRs. That is the exposure the exclusion exists to prevent; see the
 comment in `cloud-provisioning/src/pulumi-cloud/deployment-settings.ts`.

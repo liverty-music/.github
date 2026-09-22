@@ -87,6 +87,41 @@
       "automerge": true
     },
     {
+      "description": "STAGE 2 (task 10.4) — runtime npm dependencies, minor and patch. Stage 1 enabled `devDependencies`; this is the same decision extended to `dependencies`, which is where the Aurelia runtime packages, the OpenTelemetry JS family, `workbox-background-sync` and the Connect-RPC web client live. The evidence is the same evidence: these repositories gate merges on `CI Success`, which runs lint, typecheck, unit tests, the Storybook component tests against committed visual baselines, and the Playwright E2E and PWA projects. Major updates are NOT listed and therefore still inherit the global `automerge: false`. Two packages are deliberately left out and their exclusions live in `frontend/renovate.json` and `cloud-provisioning/renovate.json`, not here, because the reasons are repository-specific: `@playwright/test` invalidates committed screenshot baselines that Renovate cannot regenerate, `vite-plugin-pwa` has an install-prompt surface CI cannot reach, npm `overrides` encode a judgement whose correct resolution is often removal, and a Pulumi provider cannot be judged without a preview run against production credentials. A repository's own rules are merged AFTER this preset's and later matches win, so each of those exclusions overrides this rule.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "dependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "STAGE 2 (task 10.4) — Go modules, minor and patch. Covers the OpenTelemetry Go and Connect-RPC Go modules, `stripe-go`, the `zitadel/*` and `pannpers/*` libraries, and the `go-tools` group of build CLIs. `backend` runs `go build`, `go test` and `golangci-lint` behind `CI Success`, with `postUpdateOptions: [gomodTidy]` so the module graph is settled in the same commit. The BSR-generated modules cannot reach this rule: `buf.build/gen/go/**` is `enabled: false` in `backend/renovate.json` — `liverty-music/schema/*` by policy, because it advances with the OpenSpec change and its code migration, and `pocketsign/apis/*` because Renovate cannot resolve its version format at all. Task 10.4 lists the pocketsign SDK as a family to enable; it is not enabled and cannot be, and the manual bump in the runbook remains its only path.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "The Go version itself is patch-only (task 10.5), so `1.27.1 -> 1.27.2` merges unattended and `1.27 -> 1.28` waits for a person. This is not caution about Renovate — it is Go's numbering. A Go `1.N` release is a language release with a new compiler, garbage collector and standard library, which every other ecosystem would call a major; only the third component is a patch release. Renovate classifies it as `minor`, so the general gomod rule above would automerge it. This rule is placed after that one and wins. It matches on the `golang-version` datasource rather than on the name `go`, because that is what actually identifies the Go release: the gomod manager emits both the `go` and the `toolchain` directive as `depName: \"go\"` with `datasource: \"golang-version\"`, and matching the datasource cannot be confused with a Go module that happens to be named `go`. The other Go declarations are unaffected and are meant to be: `golang:1.27-alpine` is a Docker tag at major.minor precision that a patch release does not move, and `.golangci.yml` no longer pins a version at all — it reads `go.mod`. Node needs no equivalent rule: `.nvmrc` holds `22`, `engines.node` is a range and `node:22-alpine` is a major.minor tag, so none of them receives a patch update; the only Node dependency at full precision is `@types/node`, a devDependency already covered by stage 1.",
+      "matchDatasources": [
+        "golang-version"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "automerge": false
+    },
+    {
       "description": "PERMANENT: the .github repository never automerges. It has no GitHubRepositoryComponent in cloud-provisioning, so it has no branch protection, no required status checks and no CI of its own — an automerge there would land with no gate whatsoever, which is the opposite of the policy this configuration implements. Renovate still raises pull requests for its GitHub Actions; a human merges them. Removing this rule requires first giving .github its own CI and protection (design D11, follow-up 12.4).",
       "matchRepositories": [
         "liverty-music/.github"

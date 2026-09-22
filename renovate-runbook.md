@@ -170,12 +170,53 @@ because it should not be bumped. Seeing it here IS the prompt to bump it — see
 
 ## Turning automerge off in a hurry
 
-One commit, in [`renovate-config.json`](renovate-config.json):
+One commit, appended to the END of `packageRules` in
+[`renovate-config.json`](renovate-config.json):
 
 ```json
-"automerge": false
+{
+  "description": "EMERGENCY: stop all unattended merges. Remove to restore.",
+  "matchPackageNames": ["**"],
+  "automerge": false
+}
 ```
 
 It is inherited by every repository, so this stops unattended merges everywhere
 at once. PR creation keeps running, so nothing is lost — updates simply queue
-for a human.
+for a human. Remove the rule to restore.
+
+**Two details decide whether this works, and both are easy to get wrong.**
+
+*It must go at the end.* Renovate applies `packageRules` in array order and each
+match overwrites the last, so a rule only overrides what precedes it. Appended,
+it follows every automerge-enabling rule in the preset — and every repository's
+own rules too, since a preset's rules are merged before the config that extends
+it.
+
+*Editing the top-level `"automerge": false` does nothing.* That key is already
+`false`; automerge is granted by `packageRules` that override it per group, and
+setting a value to what it already is changes nothing. This runbook said to do
+exactly that until task 10.7 checked it — the kill switch was a no-op for as
+long as it was documented, and nobody would have found out until they pulled it.
+
+**Verify it, rather than trusting either this page or the diff:**
+
+```bash
+cd .github
+npx --package renovate -- node scripts/check-automerge-policy.mjs
+```
+
+The script evaluates the real rules through Renovate's own `applyPackageRules`
+and asserts what each of sixteen representative dependencies is allowed to do —
+including that the kill switch above reduces every one of them to `human`. Run
+it before merging any change to `renovate-config.json` or to a repository's
+`renovate.json`.
+
+It is worth running for ordinary policy changes too, not just emergencies. The
+rules are written against shapes — a manager, a `depType`, an update type —
+while the decisions they encode are about packages, and the two drift apart
+quietly. `vite-plugin-pwa` is the case that motivated the script: a rule naming
+`devDependencies` enabled automerge on a package an exclusion list had
+explicitly named as forbidden. Nothing failed. Nothing could fail, because "no
+pull request has merged itself yet" and "no pull request can merge itself" look
+identical right up until one does.

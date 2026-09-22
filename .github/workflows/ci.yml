@@ -1,0 +1,120 @@
+name: CI
+
+# This repository holds the organization's Renovate policy — the rules that
+# decide which dependency updates may merge unattended in the OTHER four
+# repositories. Until this workflow existed it was the only repository with no
+# verification of any kind, which made it the one place a policy defect could
+# reach `main` unchallenged. Three did:
+#
+#   - an own-image exclusion whose glob matched nothing, leaving our own
+#     container images (which ArgoCD deploys from) inside Renovate's reach
+#   - an automerge exclusion named against a package that a rule named against
+#     a `depType` had already swept in
+#   - a documented emergency kill switch that set a key to the value it
+#     already had, and therefore did nothing
+#
+# All three were valid JSON, all three read correctly in review, and none of
+# them could fail until the moment it mattered. See follow-up task 12.4 of the
+# `automate-dependency-updates` OpenSpec change.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  renovate-policy:
+    name: Renovate Policy
+    runs-on: ubuntu-latest
+    steps:
+      # The policy is the org preset here PLUS each repository's own
+      # `renovate.json`, and the interaction between them is where the
+      # decisions actually land — a repository's rules are merged after this
+      # preset's and override it. Checking this file alone would verify the
+      # half that never carries an exclusion.
+      - name: Checkout .github
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: repos/.github
+
+      - name: Checkout backend renovate.json
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: liverty-music/backend
+          path: repos/backend
+          sparse-checkout: renovate.json
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout frontend renovate.json
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: liverty-music/frontend
+          path: repos/frontend
+          sparse-checkout: renovate.json
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout cloud-provisioning renovate.json
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: liverty-music/cloud-provisioning
+          path: repos/cloud-provisioning
+          sparse-checkout: renovate.json
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout specification renovate.json
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: liverty-music/specification
+          path: repos/specification
+          sparse-checkout: renovate.json
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: repos/.github/.nvmrc
+
+      # `renovate` is installed rather than pinned in a manifest because this
+      # repository has no npm project and should not grow one for two scripts.
+      # The version is the floating latest ON PURPOSE: the policy has to hold
+      # against the Renovate that will actually evaluate it, which is
+      # Mend-hosted and always current. Pinning here would verify the rules
+      # against a Renovate nobody runs.
+      - name: Install Renovate
+        run: npm install --no-save --no-audit --no-fund renovate
+
+      - name: Validate every Renovate config
+        run: |
+          set -euo pipefail
+          npx renovate-config-validator \
+            repos/.github/renovate-config.json \
+            repos/.github/renovate.json \
+            repos/backend/renovate.json \
+            repos/frontend/renovate.json \
+            repos/cloud-provisioning/renovate.json \
+            repos/specification/renovate.json
+
+      # Validation only proves each file is well-formed. This asserts what the
+      # rules DO: what each of a fixed set of dependencies is allowed to do
+      # once the preset and the repository rules are merged, and that the
+      # runbook's kill switch still reduces all of them to human review.
+      - name: Check the automerge policy
+        run: node repos/.github/scripts/check-automerge-policy.mjs repos
+
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [renovate-policy]
+    if: always()
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}

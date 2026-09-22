@@ -61,6 +61,32 @@
       "pinDigests": false
     },
     {
+      "description": "STAGE 1 AUTOMERGE — the lowest-risk axes. `automerge` stays false at the top level and is turned on here per group, rather than flipped on globally with exclusions: with exclusions, forgetting one means it merges, and the failure is silent. This way forgetting one means it waits for a person. Restricted to minor/patch/digest. Majors never automerge (the capability forbids it), and `pin` is left out deliberately — pin pull requests interact oddly with the release-age check (Renovate does not wire release age into pin, renovatebot/renovate#40288), and that interaction has not been observed under automerge yet.",
+      "matchManagers": [
+        "github-actions",
+        "dockerfile",
+        "docker-compose",
+        "mise"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "STAGE 1 AUTOMERGE — npm devDependencies. Build and test tooling: a break shows up as a red pipeline on the next pull request rather than in production. Note the repository-level exclusions still win over this, because a repository's own `renovate.json` rules are evaluated after the inherited preset — `@playwright/test` is a devDependency and stays excluded in frontend, because a bump invalidates committed visual baselines that Renovate cannot regenerate.",
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
       "description": "PERMANENT: the .github repository never automerges. It has no GitHubRepositoryComponent in cloud-provisioning, so it has no branch protection, no required status checks and no CI of its own — an automerge there would land with no gate whatsoever, which is the opposite of the policy this configuration implements. Renovate still raises pull requests for its GitHub Actions; a human merges them. Removing this rule requires first giving .github its own CI and protection (design D11, follow-up 12.4).",
       "matchRepositories": [
         "liverty-music/.github"

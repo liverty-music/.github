@@ -25,6 +25,19 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Renovate's pull requests are reviewed like anyone else's. Without
+          # this the action refuses them — "Workflow initiated by non-human
+          # actor" — and every dependency update carries a permanently red
+          # check, which trains people to ignore red.
+          #
+          # An EXPLICIT list, never '*'. These repositories are public, and the
+          # action's own security guidance is direct about what that combination
+          # costs: "Allowed bots are not checked for repository permissions. A
+          # bot that matches an entry does not need to be installed on your
+          # repository or have write access... any such App can invoke this
+          # action with a prompt it controls." With `renovate` named, only the
+          # Mend app we installed qualifies.
+          allowed_bots: 'renovate'
           plugin_marketplaces: https://github.com/anthropics/claude-code.git
           plugins: code-review@claude-code-plugins
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'

@@ -5,7 +5,8 @@
     "Renovate auto-discovers this file in the org's .github repository, so a policy change here takes effect everywhere without editing each repository. Per-repository renovate.json files add only what is specific to their stack.",
     "Built by extending config:best-practices rather than assembling rules by hand: a locally copied group does not learn about packages added upstream later, so it narrows silently while continuing to look correct. See the OpenSpec change `automate-dependency-updates`, design D14.",
     "The recurring human actions this policy implies — regenerating visual baselines after a Playwright bump, reviewing a Pulumi preview, handling an urgent fix held by the release-age delay, updating buf.lock by hand — are documented in renovate-runbook.md next to this file.",
-    "The observation cycle this schedule was briefly lifted for is complete. It corrected four assumptions that could only be checked by running Renovate: `group:pulumi` does NOT group the Pulumi providers (they are grouped locally now, as noise reduction — they are not version-coupled); BSR-generated Go modules cannot be looked up at all; our own container images were being proposed for update, which would have been a deployment; and `helpers:pinGitHubActionDigests` was pinning our OWN reusable workflow, severing the `@main` reference it depends on. What the cycle CONFIRMED: `group:monorepos` works for Vitest, OpenTelemetry JS and the Node family (`node` + `@types/node` in one pull request), the Playwright custom manager matches all three of its locations, and Aurelia stays on `2.0.0-rc.2` without a local rule — so none was written."
+    "The observation cycle this schedule was briefly lifted for is complete. It corrected four assumptions that could only be checked by running Renovate: `group:pulumi` does NOT group the Pulumi providers (they are grouped locally now, as noise reduction — they are not version-coupled); BSR-generated Go modules cannot be looked up at all; our own container images were being proposed for update, which would have been a deployment; and `helpers:pinGitHubActionDigests` was pinning our OWN reusable workflow, severing the `@main` reference it depends on. What the cycle CONFIRMED: `group:monorepos` works for Vitest, OpenTelemetry JS and the Node family (`node` + `@types/node` in one pull request), the Playwright custom manager matches all three of its locations, and Aurelia stays on `2.0.0-rc.2` without a local rule — so none was written.",
+    "`prHourlyLimit` is 0 (unlimited) and `prConcurrentLimit` is the only throttle. Renovate's default hourly limit is 2, and it starved the weekly window: the hosted app runs only about every four hours, so the Saturday 00:00–06:00 window gets one or two runs and each repository received two pull requests a week — in frontend both were pins, while a dozen automerge-eligible minor/patch updates sat on the dashboard as `Awaiting Schedule` for another week. An hourly limit protects CI capacity when many branches open at once; here that is already bounded by `prConcurrentLimit`, and an automerged pull request frees its slot on the first run after its checks pass. The monthly axes are affected the same way — two or four pull requests per month for every Actions, Dockerfile and mise update in a repository."
   ],
   "extends": [
     "config:best-practices"
@@ -14,6 +15,7 @@
   "dependencyDashboard": true,
   "automerge": false,
   "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
   "rebaseWhen": "behind-base-branch",
   "schedule": [
     "before 6am on saturday"

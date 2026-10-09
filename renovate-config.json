@@ -35,6 +35,17 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "EXCEPTION to the release-age delay above: Docker digest updates and digest pins. For a digest, Renovate takes the release age from the TAG (Docker Hub `last_updated`), and official images such as `golang:1.27-alpine` and `postgres:18` are rebuilt more often than every three days, so the age check never passes. The pin pull request backend#513 sat on `renovate/stability-days: pending` from 2026-09-26, re-pointed at a newer digest each time the tag was rebuilt (10/08 09:59 to 8a5910f, then the tag moved to 738d1cf the same evening). Not pinning is NOT the alternative it looks like: a floating tag pulls the newest rebuild on every build, so the effective delay is zero there too, with no pull request, no CI gate and no revert. Pinning without a delay is equally fresh and keeps all three. This is a standing exception for a datasource whose release age is structurally unreachable, not the per-incident exemption the runbook forbids. Version updates of Docker tags still wait three days. GitHub Actions digests (`github-tags`) are NOT included: `anthropics/claude-code-action` moves its `v1` tag almost daily and hits the same wall, but an Action runs with repository tokens and is tracked separately.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "digest",
+        "pinDigest"
+      ],
+      "minimumReleaseAge": null
+    },
+    {
       "description": "Monthly cadence for the slow-moving, high-fan-out axes. Weekly proposals for these produce churn out of proportion to how often they actually matter.",
       "matchManagers": [
         "github-actions",

@@ -39,13 +39,21 @@ const read = (p) => JSON.parse(fs.readFileSync(p, 'utf8'))
 const preset = read(path.join(root, '.github', 'renovate-config.json'))
 
 // The kill switch from renovate-runbook.md. A packageRule with no matchers is
-// rejected by renovate-config-validator, so it matches on `**`, which matches
-// bare names as well as slashed ones.
-const KILL_SWITCH = {
-  description: 'EMERGENCY: stop all unattended merges. See renovate-runbook.md.',
-  matchPackageNames: ['**'],
-  automerge: false,
-}
+// rejected by renovate-config-validator, so the first rule matches on `**`,
+// which matches bare names as well as slashed ones. Lock file maintenance has
+// no package name for `**` to match, so it needs the second rule.
+const KILL_SWITCH = [
+  {
+    description: 'EMERGENCY: stop all unattended merges. See renovate-runbook.md.',
+    matchPackageNames: ['**'],
+    automerge: false,
+  },
+  {
+    description: 'EMERGENCY: stop lock file maintenance automerge. See renovate-runbook.md.',
+    matchUpdateTypes: ['lockFileMaintenance'],
+    automerge: false,
+  },
+]
 
 // depName, and every field a rule in this organization matches on.
 const dep = (repo, depName, extra) => ({ repo, depName, packageName: depName, ...extra })
@@ -77,8 +85,18 @@ const CASES = [
   [dep('cloud-provisioning', 'asia-northeast2-docker.pkg.dev/liverty-music-prod/backend/api',
     { datasource: 'docker', manager: 'kustomize', updateType: 'minor' }),
     'disabled', 'changing a newTag is a deployment; bump-prod-pin.yml owns these (design D7)'],
-  [dep('cloud-provisioning', 'external-secrets', { datasource: 'helm', manager: 'helmv3', updateType: 'minor' }),
-    'human', 'ArgoCD syncs the cluster from these; never enabled for automerge'],
+  [dep('cloud-provisioning', 'external-secrets', { datasource: 'helm', manager: 'kustomize', depType: 'HelmChart', updateType: 'minor' }),
+    'automerge', 'stage 3: a chart minor deploys through ArgoCD, accepted while there are no users'],
+  [dep('cloud-provisioning', 'argo-cd', { datasource: 'docker', manager: 'kustomize', depType: 'HelmChart', updateType: 'patch' }),
+    'automerge', 'an OCI chart resolves through the docker datasource and must match the same rule'],
+  [dep('cloud-provisioning', 'reloader', { datasource: 'helm', manager: 'kustomize', depType: 'HelmChart', updateType: 'major' }),
+    'human', 'no major update automerges'],
+  [{ repo: 'frontend', manager: 'npm', updateType: 'lockFileMaintenance' },
+    'automerge', 'CI Success gates a lock refresh like any other update'],
+  [{ repo: 'cloud-provisioning', manager: 'npm', updateType: 'lockFileMaintenance' },
+    'human', 'a lock refresh would move the ranged Pulumi providers past their preview gate'],
+  [dep('backend', 'google.golang.org/genproto', { ...gomod, updateType: 'digest' }),
+    'automerge', 'a pseudo-version commit move passes the same go build/test gate'],
   [dep('backend', 'go', { datasource: 'golang-version', manager: 'gomod', depType: 'toolchain', updateType: 'patch' }),
     'automerge', 'a Go patch release (task 10.5)'],
   [dep('backend', 'go', { datasource: 'golang-version', manager: 'gomod', depType: 'golang', updateType: 'minor' }),
@@ -108,7 +126,7 @@ const verdict = async (c, withKillSwitch) => {
     ...c,
     repository: `liverty-music/${c.repo}`,
     automerge: false,
-    packageRules: withKillSwitch ? [...rules, KILL_SWITCH] : rules,
+    packageRules: withKillSwitch ? [...rules, ...KILL_SWITCH] : rules,
   })
   if (resolved.enabled === false) return 'disabled'
   return resolved.automerge === true ? 'automerge' : 'human'
@@ -117,7 +135,7 @@ const verdict = async (c, withKillSwitch) => {
 const failures = []
 for (const [c, expected, why] of CASES) {
   const got = await verdict(c, false)
-  const line = `${c.repo.padEnd(19)} ${c.depName.slice(0, 55).padEnd(56)} ${String(c.updateType).padEnd(6)}`
+  const line = `${c.repo.padEnd(19)} ${String(c.depName ?? '(lock file)').slice(0, 55).padEnd(56)} ${String(c.updateType).padEnd(6)}`
   if (got === expected) {
     console.log(`  ok   ${line} ${got}`)
     continue

@@ -114,13 +114,14 @@
       "automerge": true
     },
     {
-      "description": "STAGE 2 (task 10.4) — Go modules, minor and patch. Covers the OpenTelemetry Go and Connect-RPC Go modules, `stripe-go`, the `zitadel/*` and `pannpers/*` libraries, and the `go-tools` group of build CLIs. `backend` runs `go build`, `go test` and `golangci-lint` behind `CI Success`, with `postUpdateOptions: [gomodTidy]` so the module graph is settled in the same commit. The BSR-generated modules cannot reach this rule: `buf.build/gen/go/**` is `enabled: false` in `backend/renovate.json` — `liverty-music/schema/*` by policy, because it advances with the OpenSpec change and its code migration, and `pocketsign/apis/*` because Renovate cannot resolve its version format at all. Task 10.4 lists the pocketsign SDK as a family to enable; it is not enabled and cannot be, and the manual bump in the runbook remains its only path.",
+      "description": "STAGE 2 (task 10.4) — Go modules, minor and patch. Covers the OpenTelemetry Go and Connect-RPC Go modules, `stripe-go`, the `zitadel/*` and `pannpers/*` libraries, and the `go-tools` group of build CLIs. `backend` runs `go build`, `go test` and `golangci-lint` behind `CI Success`, with `postUpdateOptions: [gomodTidy]` so the module graph is settled in the same commit. The BSR-generated modules cannot reach this rule: `buf.build/gen/go/**` is `enabled: false` in `backend/renovate.json` — `liverty-music/schema/*` by policy, because it advances with the OpenSpec change and its code migration, and `pocketsign/apis/*` because Renovate cannot resolve its version format at all. Task 10.4 lists the pocketsign SDK as a family to enable; it is not enabled and cannot be, and the manual bump in the runbook remains its only path. `digest` covers pseudo-version modules such as `google.golang.org/genproto`, whose updates are commit moves rather than versions; they pass the same gate, and leaving them out produced two hand merges a week.",
       "matchManagers": [
         "gomod"
       ],
       "matchUpdateTypes": [
         "minor",
-        "patch"
+        "patch",
+        "digest"
       ],
       "automerge": true
     },
@@ -133,6 +134,27 @@
         "minor"
       ],
       "automerge": false
+    },
+    {
+      "description": "STAGE 3 — Helm charts rendered by kustomize (`helmCharts:` in k8s/namespaces/**/kustomization.yaml), minor and patch. This REVERSES an earlier decision recorded in scripts/check-automerge-policy.mjs (\"ArgoCD syncs the cluster from these; never enabled for automerge\"): merging one of these is a deployment, because ArgoCD syncs the cluster from main. It was reversed deliberately while the product has no users and verifying in production is acceptable. Majors still wait for a person. `depType: HelmChart` matches both https and OCI chart repositories (the latter resolve through the docker datasource) and nothing else the kustomize manager detects — our own image tags stay disabled in cloud-provisioning/renovate.json. Revisit when the product has users.",
+      "matchManagers": [
+        "kustomize"
+      ],
+      "matchDepTypes": [
+        "HelmChart"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Lock file maintenance automerges. It re-resolves every range within package.json, so it can move transitive packages and any direct dependency declared with a range; `CI Success` gates the merge exactly as it does for the per-package updates, and a lock that breaks a test does not merge (frontend#650 failed Storybook and stayed open). A repository whose ranged direct dependencies must not move unattended opts out in its own renovate.json — cloud-provisioning does, for the Pulumi providers.",
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "automerge": true
     },
     {
       "description": "PERMANENT: the .github repository never automerges. It has no GitHubRepositoryComponent in cloud-provisioning, so it has no branch protection, no required status checks and no CI of its own — an automerge there would land with no gate whatsoever, which is the opposite of the policy this configuration implements. Renovate still raises pull requests for its GitHub Actions; a human merges them. Removing this rule requires first giving .github its own CI and protection (design D11, follow-up 12.4).",

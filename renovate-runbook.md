@@ -191,7 +191,7 @@ because it should not be bumped. Seeing it here IS the prompt to bump it — see
 
 ## Turning automerge off in a hurry
 
-One commit, appended to the END of `packageRules` in
+One commit, appending these two rules to the END of `packageRules` in
 [`renovate-config.json`](renovate-config.json):
 
 ```json
@@ -199,12 +199,21 @@ One commit, appended to the END of `packageRules` in
   "description": "EMERGENCY: stop all unattended merges. Remove to restore.",
   "matchPackageNames": ["**"],
   "automerge": false
+},
+{
+  "description": "EMERGENCY: stop lock file maintenance automerge. Remove to restore.",
+  "matchUpdateTypes": ["lockFileMaintenance"],
+  "automerge": false
 }
 ```
 
+The second rule is not redundant. Lock file maintenance has no package name,
+so `matchPackageNames: ["**"]` never matches it, and with the first rule alone
+an automerging lock refresh would keep merging.
+
 It is inherited by every repository, so this stops unattended merges everywhere
 at once. PR creation keeps running, so nothing is lost — updates simply queue
-for a human. Remove the rule to restore.
+for a human. Remove the rules to restore.
 
 **Two details decide whether this works, and both are easy to get wrong.**
 
@@ -228,7 +237,7 @@ npx --package renovate -- node scripts/check-automerge-policy.mjs
 ```
 
 The script evaluates the real rules through Renovate's own `applyPackageRules`
-and asserts what each of sixteen representative dependencies is allowed to do —
+and asserts what each of a set of representative dependencies is allowed to do —
 including that the kill switch above reduces every one of them to `human`. Run
 it before merging any change to `renovate-config.json` or to a repository's
 `renovate.json`.

@@ -46,12 +46,23 @@ without looking converts a regression test into a rubber stamp.
 does not run on dependency PRs at all — producing one means executing the
 proposed package against production credentials before anyone has read it.
 
-**What to do:** obtain the preview yourself.
+**What to do:** obtain the preview yourself, on the Renovate branch, for both
+stacks.
 
 ```bash
 cd cloud-provisioning
-pulumi preview -s prod --diff
+pulumi preview -s prod --diff --refresh --run-program
+pulumi preview -s dev --diff --refresh --run-program
 ```
+
+`--refresh --run-program` is not optional: without them a provider bump shows
+false diffs, and the provider's own upgrade guides assume both.
+
+For a major provider version, run the `provider-upgrade` skill of the `pulumi`
+plugin instead (cloud-provisioning enables it in `.claude/settings.json`). It
+checks state and code against that version's breaking changes, runs the
+previews above and classifies every diff. Post its Upgrade Summary as a comment
+on the Renovate pull request rather than opening a new one.
 
 Read the resource summary. Replacements and deletions are the ones that matter;
 `~ update` on a monitoring dashboard is not the same event as `-` on a Cloud SQL

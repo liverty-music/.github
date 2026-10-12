@@ -69,26 +69,31 @@ Read the resource summary. Replacements and deletions are the ones that matter;
 instance. If anything would be replaced or deleted, do not merge — work out why
 a provider bump wants to do that first.
 
-**Two resources always show as `~ update`, on every preview, including one with
-no changes at all:**
+**A preview of `main` is not empty.** These resources show as `~ update` on
+every preview, including one taken right after a successful `pulumi up`:
 
-```
-~ organizer-media-backend-bucket   gcp:compute/backendBucket    update
-~ dashboard-zitadel-observability  gcp:monitoring/dashboard     update
-```
+| Stack | Resource | Field | Why it never settles |
+|---|---|---|---|
+| prod, dev | `deployment-settings-<stack>` (`pulumiservice:DeploymentSettings`) | `vcs` | Pulumi Cloud adds a `vcs` block next to the `github` one the program sets; the program deliberately omits `vcs` (see `deployment-settings.ts`). Pull-request previews are unaffected |
+| prod | `pannpers` (`zitadel:HumanUser`) | `firstName`, `preferredLanguage` | The admin Google IdP has `isAutoUpdate: true`, so each sign-in overwrites the profile with the Google account's |
+| prod | `liverty-music-oidc-settings` (`zitadel:DefaultOidcSettings`) | `accessTokenLifetime` | The program writes `0h30m0s`; Zitadel returns `30m0s` |
+| prod | `instance-default-login-policy` (`zitadel:DefaultLoginPolicy`) | `multiFactors`, `secondFactors` | Zitadel keeps factors the program does not declare |
+| prod | `specification` (`github:Repository`) | `template` | GitHub uses `template` at creation only and never returns it |
 
-They are a perpetual diff — applying them does not settle them, and they
-reappear on the next preview immediately afterwards. Measured on
-2026-09-22: a `pulumi up` updated both, and a preview taken minutes later
-listed both again.
+Measured on 2026-10-12: prod `pulumi up` (version 260) succeeded, and a
+`--refresh --run-program` preview minutes later listed exactly these, with dev
+showing only its `deployment-settings-dev` row. The two resources this section
+named before (`organizer-media-backend-bucket`, `dashboard-zitadel-observability`)
+no longer appear.
 
-So the baseline is two, not zero. Compare a pull request's preview against
-that baseline rather than against an empty one, and treat anything beyond
-those two as attributable to the pull request.
+Compare a pull request's preview against this baseline rather than against an
+empty one, and treat anything beyond it as attributable to the pull request. If
+the baseline itself changes, take a preview of `main` before blaming the pull
+request, and update this table.
 
-That is a workaround, not a resolution. A reviewer who learns to read two
+That is a workaround, not a resolution. A reviewer who learns to read these
 updates as normal is being trained out of the signal this whole control
-depends on, and the right fix is to find why those two never converge.
+depends on; the right fix is to make each row converge.
 
 **Never** widen the Pulumi Cloud trigger `paths` to make previews run on
 dependency PRs. That is the exposure the exclusion exists to prevent; see the

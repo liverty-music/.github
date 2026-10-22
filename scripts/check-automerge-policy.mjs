@@ -64,7 +64,7 @@ const gomod = { datasource: 'go', manager: 'gomod', depType: 'require' }
 // decision it encodes. 'disabled' means Renovate must not propose it at all.
 const CASES = [
   [dep('frontend', 'vite-plugin-pwa', { ...npm, depType: 'devDependencies', updateType: 'minor' }),
-    'human', 'install-prompt behaviour has no CI coverage (task 10.4c)'],
+    'automerge', 'install prompt and caching are covered in CI; the hold was lifted in frontend#817'],
   [dep('frontend', '@playwright/test', { ...npm, depType: 'devDependencies', updateType: 'minor' }),
     'human', 'invalidates committed screenshot baselines Renovate cannot regenerate'],
   [dep('frontend', 'mcr.microsoft.com/playwright',

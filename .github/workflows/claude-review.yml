@@ -32,6 +32,15 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude review
+        env:
+          # The review command hands its checks and reviewers to subagents. Run
+          # through the SDK, Claude started them in the background, ended its
+          # turn to wait for their notices, and the run finished before any
+          # report arrived: no review and no comment. With background tasks off,
+          # Claude waits for each subagent before it continues
+          # (https://code.claude.com/docs/en/subagents, "Let Claude wait for a
+          # subagent").
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

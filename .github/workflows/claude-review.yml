@@ -50,7 +50,15 @@ jobs:
           allowed_bots: 'renovate'
           plugin_marketplaces: https://github.com/anthropics/claude-code.git
           plugins: code-review@claude-code-plugins
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
+          # The PR is passed as its URL. `owner/repo/pull/N` is not a PR selector
+          # gh understands: `gh pr view` reads it as a branch name and answers
+          # "no pull requests found", so the plugin's first check failed and the
+          # run stopped before reviewing, unless the model happened to rewrite
+          # the argument.
+          prompt: '/code-review:code-review ${{ github.event.pull_request.html_url }} --comment'
+          # The final review text goes to the job's step summary, so a run that
+          # ends early shows why. Tool output stays hidden.
+          display_report: true
           # Reviewer charter: steers the review toward high-signal, whole-codebase
           # consistency checks while suppressing nitpicks and review loops. The
           # per-repo CLAUDE.md "Review criteria" section supplies the domain rules.

@@ -59,6 +59,10 @@ jobs:
           # The final review text goes to the job's step summary, so a run that
           # ends early shows why. Tool output stays hidden.
           display_report: true
+          # Tool output stays out of the public log, except on a run re-run with
+          # debug logging (`gh run rerun <id> --debug`): then every tool call and
+          # its result is printed, so a denied command can be seen.
+          show_full_output: ${{ runner.debug == '1' }}
           # Reviewer charter: steers the review toward high-signal, whole-codebase
           # consistency checks while suppressing nitpicks and review loops. The
           # per-repo CLAUDE.md "Review criteria" section supplies the domain rules.

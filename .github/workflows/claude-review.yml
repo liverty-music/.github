@@ -26,12 +26,49 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
+      # A review costs a share of the CLAUDE_CODE_OAUTH_TOKEN account's weekly
+      # limit, and Renovate used most of it: 221 of the 395 reviews from
+      # 2026-11-01 to 11-07 were its pull requests, every rebase a full review,
+      # and on 11-07 the limit ran out and every repository's review failed
+      # ("You've hit your weekly limit"). A minor, patch, digest, pin or lock
+      # update is gated by CI and mostly automerges; a major changes an API and
+      # is merged by a person, so only majors are reviewed.
+      #
+      # A major is recognised by Renovate's default title: `commitMessageExtra`
+      # writes the bare major (`to v7`) for a major and the full version
+      # (`to v7.0.2`) otherwise, and a group of majors ends in `(major)`. A
+      # `renovate/major-*` branch counts too. Checked against the 231 Renovate
+      # pull requests in the organization up to 2026-11-08: all 43 majors match
+      # and nothing else does. A label would be sturdier, but Renovate adds it
+      # after opening the pull request, so the `opened` event carries none.
+      - name: Decide whether to review
+        id: scope
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          review=true
+          if [ "$AUTHOR" = "renovate[bot]" ]; then
+            review=false
+            if [[ "$TITLE" =~ (\ to\ v[0-9]+|\ \(major\))(\ -\ autoclosed)?$ ]] \
+              || [[ "$BRANCH" == renovate/major-* ]]; then
+              review=true
+            fi
+          fi
+          echo "review=$review" >> "$GITHUB_OUTPUT"
+          if [ "$review" = false ]; then
+            echo "Not reviewed: a Renovate update that is not a major. CI gates it." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Checkout repository
+        if: steps.scope.outputs.review == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 1
 
       - name: Run Claude review
+        if: steps.scope.outputs.review == 'true'
         env:
           # The review command hands its checks and reviewers to subagents. Run
           # through the SDK, Claude started them in the background, ended its

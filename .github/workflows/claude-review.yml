@@ -11,6 +11,9 @@ permissions:
   pull-requests: write
   issues: read
   id-token: write
+  # The plan step reads this workflow's earlier runs to find the last
+  # reviewed commit.
+  actions: read
 
 jobs:
   review:
@@ -69,8 +72,109 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Run Claude review
+      # The review instructions live beside this workflow (review/*.md), so
+      # one edit reaches every repository, as the workflow does.
+      - name: Checkout review instructions
         if: steps.scope.outputs.review == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: liverty-music/.github
+          ref: main
+          path: .review-kit/kit
+          sparse-checkout: review
+          fetch-depth: 1
+
+      # Decides what this run reviews and writes it to .review-kit/run/ for the
+      # instructions to read. Half of the review time went to re-reviews, each
+      # of the whole pull request (median 11.8 minutes, 2026-10-29 to 11-08):
+      # the plugin meant to stop once Claude had commented, but looked only at
+      # conversation comments, never at its own inline ones.
+      #
+      # - Scope: after a push, only the commits since the last successful
+      #   review of this pull request, when that commit is an ancestor of the
+      #   head (a rebase makes it not, and the whole pull request is reviewed).
+      #   CodeRabbit and Anthropic's managed Code Review re-review the same way.
+      #   Listing the runs needs `actions: read`, which each caller grants.
+      # - Kind: a pull request that changes only Markdown (and OpenSpec's
+      #   `.openspec.yaml` metadata) gets the document review (review/docs.md);
+      #   bug agents had nothing to find in OpenSpec plans and archives, which
+      #   took 37 % of the review time.
+      # - Earlier findings: Claude's inline and conversation comments, so a
+      #   later review does not repeat them.
+      #
+      # Any lookup that fails falls back to a full review: never less than
+      # before.
+      - name: Plan the review
+        id: plan
+        if: steps.scope.outputs.review == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          ACTION: ${{ github.event.action }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -u
+          run_dir=.review-kit/run
+          mkdir -p "$run_dir"
+
+          kind=code
+          if files=$(gh pr diff "$PR" --repo "$REPO" --name-only) && [ -n "$files" ] \
+            && ! grep -qvE '\.md$|(^|/)\.openspec\.yaml$' <<<"$files"; then
+            kind=docs
+          fi
+
+          scope=full
+          range=""
+          if [ "$ACTION" = synchronize ]; then
+            # The caller's workflow file: owner/repo/.github/workflows/<file>@ref.
+            workflow=${WORKFLOW_REF%@*}
+            workflow=${workflow##*/}
+            last=$(gh api "repos/$REPO/actions/workflows/$workflow/runs?branch=$BRANCH&event=pull_request&status=success&per_page=30" \
+              --jq "[.workflow_runs[] | select(.head_sha != \"$HEAD_SHA\")][0].head_sha // empty" 2>/dev/null || true)
+            if [ -n "$last" ]; then
+              status=$(gh api "repos/$REPO/compare/$last...$HEAD_SHA" --jq .status 2>/dev/null || true)
+              case "$status" in
+                ahead)
+                  if gh api "repos/$REPO/compare/$last...$HEAD_SHA" \
+                      -H "Accept: application/vnd.github.diff" > "$run_dir/increment.diff" 2>/dev/null \
+                    && [ -s "$run_dir/increment.diff" ]; then
+                    scope=increment
+                    range="$last..$HEAD_SHA"
+                  fi ;;
+              esac
+            fi
+          fi
+
+          {
+            gh api --paginate "repos/$REPO/pulls/$PR/comments" \
+              --jq '.[] | select(.user.login == "claude[bot]") | "- \(.path):\(.line // .original_line) — \(.body | split("\n")[0])"' 2>/dev/null || true
+            gh api --paginate "repos/$REPO/issues/$PR/comments" \
+              --jq '.[] | select(.user.login == "claude[bot]") | "- (summary) \(.body | gsub("\n"; " ") | .[0:300])"' 2>/dev/null || true
+          } > "$run_dir/previous-findings.md"
+
+          {
+            echo "# This review run"
+            echo
+            echo "- Pull request: $PR_URL"
+            echo "- Head commit: $HEAD_SHA"
+            echo "- Scope: $scope"
+            if [ "$scope" = increment ]; then
+              echo "- Commits in scope: $range"
+              echo "- Increment diff: $run_dir/increment.diff"
+            fi
+            echo "- Previous findings: $run_dir/previous-findings.md ($(wc -l < "$run_dir/previous-findings.md") lines)"
+          } > "$run_dir/context.md"
+
+          echo "review=true" >> "$GITHUB_OUTPUT"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "Review: $kind, $scope${range:+ ($range)}." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Claude review
+        if: steps.scope.outputs.review == 'true' && steps.plan.outputs.review == 'true'
         env:
           # The review command hands its checks and reviewers to subagents. Run
           # through the SDK, Claude started them in the background, ended its
@@ -96,14 +200,10 @@ jobs:
           # action with a prompt it controls." With `renovate` named, only the
           # Mend app we installed qualifies.
           allowed_bots: 'renovate'
-          plugin_marketplaces: https://github.com/anthropics/claude-code.git
-          plugins: code-review@claude-code-plugins
-          # The PR is passed as its URL. `owner/repo/pull/N` is not a PR selector
-          # gh understands: `gh pr view` reads it as a branch name and answers
-          # "no pull requests found", so the plugin's first check failed and the
-          # run stopped before reviewing, unless the model happened to rewrite
-          # the argument.
-          prompt: '/code-review:code-review ${{ github.event.pull_request.html_url }} --comment'
+          # The instructions are the code-review plugin's, adapted to take a
+          # scope (review/code.md, with its attribution), or the document review
+          # (review/docs.md). The plan step's context file says which.
+          prompt: 'Read .review-kit/kit/review/${{ steps.plan.outputs.kind }}.md and follow it. The context file it names is .review-kit/run/context.md.'
           # The final review text goes to the job's step summary, so a run that
           # ends early shows why. Tool output stays hidden.
           display_report: true

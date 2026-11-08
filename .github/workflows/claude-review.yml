@@ -11,6 +11,9 @@ permissions:
   pull-requests: write
   issues: read
   id-token: write
+  # The plan step reads this workflow's earlier runs to find the last
+  # reviewed commit.
+  actions: read
 
 jobs:
   review:
@@ -90,8 +93,8 @@ jobs:
       # - Scope: after a push, only the commits since the last successful
       #   review of this pull request, when that commit is an ancestor of the
       #   head (a rebase makes it not, and the whole pull request is reviewed).
-      #   Nothing new since then: no review. CodeRabbit and Anthropic's managed
-      #   Code Review re-review the same way.
+      #   CodeRabbit and Anthropic's managed Code Review re-review the same way.
+      #   Listing the runs needs `actions: read`, which each caller grants.
       # - Kind: a pull request that changes only Markdown (and OpenSpec's
       #   `.openspec.yaml` metadata) gets the document review (review/docs.md);
       #   bug agents had nothing to find in OpenSpec plans and archives, which
@@ -135,10 +138,6 @@ jobs:
             if [ -n "$last" ]; then
               status=$(gh api "repos/$REPO/compare/$last...$HEAD_SHA" --jq .status 2>/dev/null || true)
               case "$status" in
-                identical)
-                  echo "review=false" >> "$GITHUB_OUTPUT"
-                  echo "Not reviewed: no change since the review of $last." >> "$GITHUB_STEP_SUMMARY"
-                  exit 0 ;;
                 ahead)
                   if gh api "repos/$REPO/compare/$last...$HEAD_SHA" \
                       -H "Accept: application/vnd.github.diff" > "$run_dir/increment.diff" 2>/dev/null \

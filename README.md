@@ -7,7 +7,9 @@ liverty-music repository.
 
 | Path | Purpose |
 |---|---|
-| `.github/workflows/claude-review.yml` | Reusable workflow (`workflow_call`) that runs the `code-review@claude-code-plugins` Claude Code plugin against an open PR and publishes the verdict as a `Claude review` GitHub Check Run (`success` / `failure` / `neutral`). Consumed by every repo's `.github/workflows/claude-code-review.yml`. See [OpenSpec change `claude-review-check-run`](https://github.com/liverty-music/specification/tree/main/openspec/changes/archive/claude-review-check-run) for the design rationale. |
+| `.github/workflows/claude-review.yml` | Reusable workflow (`workflow_call`) that reviews a pull request with Claude and leaves inline comments or a summary comment. Consumed by every repo's `.github/workflows/claude-code-review.yml`. It skips Renovate's non-major updates, reviews only the commits pushed since the last review, and gives a pull request that changes only Markdown the document review. |
+| `review/code.md` | Code review instructions, adapted from the `code-review` plugin of anthropics/claude-plugins-official (Apache License 2.0) to review a given scope. |
+| `review/docs.md` | Review instructions for pull requests that change only Markdown, such as OpenSpec plans and archives. |
 
 ## Provisioning
 

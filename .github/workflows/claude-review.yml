@@ -27,12 +27,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # A review costs a share of the CLAUDE_CODE_OAUTH_TOKEN account's weekly
-      # limit, and Renovate used most of it: 221 of the 395 reviews from
-      # 2026-11-01 to 11-07 were its pull requests, every rebase a full review,
-      # and on 11-07 the limit ran out and every repository's review failed
-      # ("You've hit your weekly limit"). A minor, patch, digest, pin or lock
-      # update is gated by CI and mostly automerges; a major changes an API and
-      # is merged by a person, so only majors are reviewed.
+      # limit, which ran out on 2026-11-07 and failed every repository's review
+      # ("You've hit your weekly limit"). Renovate's non-major updates were 152
+      # of the 352 successful reviews from 2026-11-01 to 11-08 but only 9 % of
+      # their run time (197 of 2,164 minutes, about 1.3 minutes each); reviews
+      # of pull requests opened by people took 88 %. Skipping these saves little,
+      # but nothing is lost: a minor, patch, digest, pin or lock update is gated
+      # by CI and mostly automerges, while a major changes an API and is merged
+      # by a person, so only majors are reviewed.
       #
       # A major is recognised by Renovate's default title: `commitMessageExtra`
       # writes the bare major (`to v7`) for a major and the full version

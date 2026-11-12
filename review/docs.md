@@ -34,13 +34,13 @@ Follow these steps precisely:
 
    Agent 1 (sonnet): consistency inside the change. Read the changed artifacts of each OpenSpec change together. Flag a decision in design.md that no spec or task carries out, a task that contradicts the design or a spec, a delta spec that contradicts the proposal, a requirement whose scenarios do not test it, and a statement in one artifact that another artifact of the same change contradicts.
 
-   Agent 2 (opus): consistency with the system. For each delta spec, read the living spec it changes (`openspec/specs/<same path>/spec.md`) and the specs it names. Flag a requirement that contradicts a living requirement the change does not modify, a MODIFIED requirement that silently drops a scenario or a condition of the living one, behaviour that no requirement defines but a task or the design assumes, and a claim about external behaviour (a library, a platform, a standard) stated as fact without a source. For an archive pull request, check instead that each living spec now reads as its delta said it would.
+   Agent 2 (sonnet): consistency with the system. For each delta spec, read the living spec it changes (`openspec/specs/<same path>/spec.md`) and the specs it names. Flag a requirement that contradicts a living requirement the change does not modify, a MODIFIED requirement that silently drops a scenario or a condition of the living one, behaviour that no requirement defines but a task or the design assumes, and a claim about external behaviour (a library, a platform, a standard) stated as fact without a source. For an archive pull request, check instead that each living spec now reads as its delta said it would.
 
    Agent 3 (sonnet): CLAUDE.md compliance. Audit the changes against the CLAUDE.md files from step 1, considering for each file only the CLAUDE.md files that share a path with it or its parents. Quote the exact rule for each issue.
 
    **Only HIGH SIGNAL issues.** If you are not certain an issue is real, do not flag it.
 
-3. For each issue, launch parallel subagents to validate it: that it is real, that it lies within the scope, and that it is not in the previous-findings file. Use opus for issues from agent 2 and sonnet for the others.
+3. For each issue, launch parallel subagents to validate it: that it is real, that it lies within the scope, and that it is not in the previous-findings file. Use sonnet for every issue.
 
 4. Keep only the validated issues.
 

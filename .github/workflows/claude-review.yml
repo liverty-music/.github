@@ -29,14 +29,16 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     # Without this a hung review ran for GitHub's default 360 minutes, on a
-    # token with a weekly limit. The longest successful review step in the
-    # 213 runs of 2026-11-01 to 11-15 took 44.8 minutes (a frontend pull
-    # request); the 99th percentile was 30 minutes. 60 minutes leaves room above
-    # that and still ends a hang. No `--max-turns`: reaching it ends the run
-    # with an error (`error_max_turns`) before the review comment is posted,
-    # subagent turns count toward it, and no run recorded how many turns it
-    # used, so no value is known to be safe.
-    timeout-minutes: 60
+    # token with a weekly limit. 20 minutes was chosen by the owner to bound
+    # that cost. In the 213 successful runs of 2026-11-01 to 11-15 the review
+    # step took 6.4 minutes at the median and 17.4 at the 90th percentile, and
+    # 15 runs (7 %) took longer than 20 minutes (the longest, 44.8 minutes, was
+    # a frontend pull request). Those reviews now end without a comment and
+    # the check turns red; re-run it, or split the pull request. No
+    # `--max-turns`: reaching it ends the run with an error (`error_max_turns`)
+    # before the review comment is posted, subagent turns count toward it, and
+    # no run recorded how many turns it used, so no value is known to be safe.
+    timeout-minutes: 20
     steps:
       # A review costs a share of the CLAUDE_CODE_OAUTH_TOKEN account's weekly
       # limit, which ran out on 2026-11-07 and failed every repository's review

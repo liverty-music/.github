@@ -26,7 +26,7 @@ rule in a CLAUDE.md.
 - Only call a tool if it is required to complete the task. Every tool call should have a clear purpose.
 - Give every subagent the pull request title and description, the scope, and the paths of the increment diff and the previous-findings file.
 
-**The subagents are required.** Steps 1 to 3 launch subagents. Launch them, in the order given, even when the change looks small; do not review the documents yourself in place of the review agents, and do not end the run before the validation subagents of step 3 have reported. Launch the agents of one step in a single message so that they run in parallel.
+**The subagents are required.** Steps 1 to 3 launch subagents. Launch them, in the order given, even when the change looks small; do not review the documents yourself in place of the review agents. When step 2 returns candidate issues, do not end the run before the validation subagents of step 3 have reported; when it returns none, go on to step 5. A run in which the agents of steps 1 and 2 were not launched is a failed run. Launch the agents of one step in a single message so that they run in parallel.
 
 Follow these steps precisely:
 

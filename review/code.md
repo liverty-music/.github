@@ -36,9 +36,11 @@ contradict them. If the increment fixes one, say nothing about it.
 **The subagents are required.** Steps 1 to 4 below launch subagents. You must
 launch them, in the order given, even when the change looks small or you have
 already read all of it. Do not review the diff yourself in place of the review
-agents, and do not end the run before the validation subagents of step 4 have
-reported. A run in which no subagent was launched is a failed run. Launch the
-agents of one step in a single message so that they run in parallel.
+agents. When step 3 returns candidate issues, do not end the run before the
+validation subagents of step 4 have reported; when it returns none, there is
+nothing to validate and you go on to step 6. A run in which the agents of steps
+1 to 3 were not launched is a failed run. Launch the agents of one step in a
+single message so that they run in parallel.
 
 To do this, follow these steps precisely:
 

@@ -9,6 +9,7 @@ liverty-music repository.
 |---|---|
 | `.github/workflows/claude-review.yml` | Reusable workflow (`workflow_call`) that reviews a pull request with Claude and leaves inline comments or a summary comment. Consumed by every repo's `.github/workflows/claude-code-review.yml`. It skips Renovate's non-major updates, reviews only the commits pushed since the last review, and gives a pull request that changes only Markdown the document review. |
 | `review/code.md` | Code review instructions, adapted from the `code-review` plugin of anthropics/claude-plugins-official (Apache License 2.0) to review a given scope. |
+| `review/code-single.md` | The code review instructions before the review subagents were required: the main session may review alone. Selected by a caller with `review-profile: single`, as a fallback when the subagents cost too much time or tokens. |
 | `review/docs.md` | Review instructions for pull requests that change only Markdown, such as OpenSpec plans and archives. |
 
 ## Provisioning

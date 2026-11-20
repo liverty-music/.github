@@ -2,6 +2,14 @@ name: Reusable Claude Review
 
 on:
   workflow_call:
+    inputs:
+      # `subagents` (review/code.md) runs the review agents and a validator
+      # per candidate. `single` (review/code-single.md, the instructions
+      # before the subagents were required) is the fallback when that costs
+      # too much time or tokens: a caller sets it without editing this file.
+      review-profile:
+        type: string
+        default: subagents
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
@@ -110,8 +118,12 @@ jobs:
       #   `.openspec.yaml` metadata) gets the document review (review/docs.md);
       #   bug agents had nothing to find in OpenSpec plans and archives, which
       #   took 37 % of the review time.
-      # - Earlier findings: Claude's inline and conversation comments, so a
-      #   later review does not repeat them.
+      # - Earlier findings: Claude's inline and conversation comments, in
+      #   full, so a later review does not repeat them and can tell whether
+      #   the increment fixed one. Cut to a first line, a finding often kept
+      #   only its symptom, not its scenario.
+      # - Instructions: review/code.md, or review/code-single.md when the
+      #   caller sets `review-profile: single`.
       #
       # Any lookup that fails falls back to a full review: never less than
       # before.
@@ -127,6 +139,7 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           WORKFLOW_REF: ${{ github.workflow_ref }}
+          PROFILE: ${{ inputs.review-profile }}
         run: |
           set -u
           run_dir=.review-kit/run
@@ -136,6 +149,9 @@ jobs:
           if files=$(gh pr diff "$PR" --repo "$REPO" --name-only) && [ -n "$files" ] \
             && ! grep -qvE '\.md$|(^|/)\.openspec\.yaml$' <<<"$files"; then
             kind=docs
+          fi
+          if [ "$kind" = code ] && [ "$PROFILE" = single ]; then
+            kind=code-single
           fi
 
           scope=full
@@ -162,9 +178,9 @@ jobs:
 
           {
             gh api --paginate "repos/$REPO/pulls/$PR/comments" \
-              --jq '.[] | select(.user.login == "claude[bot]") | "- \(.path):\(.line // .original_line) — \(.body | split("\n")[0])"' 2>/dev/null || true
+              --jq '.[] | select(.user.login == "claude[bot]") | "## \(.path):\(.line // .original_line)\n\n\(.body)\n"' 2>/dev/null || true
             gh api --paginate "repos/$REPO/issues/$PR/comments" \
-              --jq '.[] | select(.user.login == "claude[bot]") | "- (summary) \(.body | gsub("\n"; " ") | .[0:300])"' 2>/dev/null || true
+              --jq '.[] | select(.user.login == "claude[bot]") | "## Summary comment\n\n\(.body)\n"' 2>/dev/null || true
           } > "$run_dir/previous-findings.md"
 
           {

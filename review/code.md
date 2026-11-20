@@ -5,7 +5,11 @@ License 2.0. Changes: the review covers the scope the workflow chose (the whole
 pull request, or only the commits pushed since the last review); the
 eligibility check is done by the workflow before this runs; Claude's earlier
 findings are read from a file the workflow writes, because `gh pr view
---comments` does not list inline review comments.
+--comments` does not list inline review comments; the review subagents are
+required, not optional (without that wording, Claude 5.5 models reviewed alone
+and launched none); the bug agents read the surrounding code and may report a
+bug that needs a particular state to occur; certainty is decided by the
+validation step, not by silence at the finding step.
 -->
 
 Provide a code review for a pull request. The workflow has written everything
@@ -29,6 +33,13 @@ contradict them. If the increment fixes one, say nothing about it.
 - Only call a tool if it is required to complete the task. Every tool call should have a clear purpose.
 - Give every subagent the pull request title and description, the scope, and the paths of the increment diff and the previous-findings file.
 
+**The subagents are required.** Steps 1 to 4 below launch subagents. You must
+launch them, in the order given, even when the change looks small or you have
+already read all of it. Do not review the diff yourself in place of the review
+agents, and do not end the run before the validation subagents of step 4 have
+reported. A run in which no subagent was launched is a failed run. Launch the
+agents of one step in a single message so that they run in parallel.
+
 To do this, follow these steps precisely:
 
 1. Launch a haiku agent to return a list of file paths (not their contents) for all relevant CLAUDE.md files including:
@@ -43,25 +54,25 @@ To do this, follow these steps precisely:
    Audit changes for CLAUDE.md compliance in parallel. Note: When evaluating CLAUDE.md compliance for a file, you should only consider CLAUDE.md files that share a file path with the file or parents.
 
    Agent 3: Sonnet bug agent (parallel subagent with agent 4)
-   Scan for obvious bugs. Focus only on the diff itself without reading extra context. Flag only significant bugs; ignore nitpicks and likely false positives. Do not flag issues that you cannot validate without looking at context outside of the git diff.
+   Read the changed code, then read what it touches: the callers, the callees, the types and the specs or documents that state its contract. Look for code that does the wrong thing: logic errors, wrong or lost error codes, a missing nil or empty case, a wrong order of operations, an unchecked precondition, a security or data-integrity problem. Report the file and line and the concrete scenario in which it goes wrong.
 
    Agent 4: Sonnet bug agent (parallel subagent with agent 3)
-   Look for problems that exist in the introduced code. This could be security issues, incorrect logic, etc. Only look for issues that fall within the changed code.
+   Look at the changed code under the conditions that production brings and tests rarely cover: a retried or redelivered message, two requests at once, a dependency that is down or slow, the first use with empty or cold state, stale cached state, a partial failure halfway through, a rollback or a re-run. Also check that the change keeps the contract of everything it replaces or renames (the old behaviour, error codes, locking order, ordering of side effects). Report the file and line and the concrete scenario in which it goes wrong.
 
-   **CRITICAL: We only want HIGH SIGNAL issues.** Flag issues where:
-   - The code will fail to compile or parse (syntax errors, type errors, missing imports, unresolved references)
-   - The code will definitely produce wrong results regardless of inputs (clear logic errors)
+   **What to report.** Report a finding when you can describe a concrete scenario (an input, or a state that can occur in production) in which the changed code goes wrong, and name the code path that leads there. A bug that shows only in some states, such as a retry, a race, a failed dependency or the first open, counts. Also report:
+   - Code that will fail to compile or parse (syntax errors, type errors, missing imports, unresolved references)
    - Clear, unambiguous CLAUDE.md violations where you can quote the exact rule being broken
+
+   You do not need to be certain: the validation step that follows decides. A finding without a concrete scenario is a guess; leave it out.
 
    Do NOT flag:
    - Code style or quality concerns
-   - Potential issues that depend on specific inputs or state
    - Subjective suggestions or improvements
    - Anything listed in the previous-findings file
 
-   If you are not certain an issue is real, do not flag it. False positives erode trust and waste reviewer time.
+   In addition to the above, each subagent should be told the pull request title and description. This will help provide context regarding the author's intent.
 
-4. For each issue found in the previous step, launch parallel subagents to validate the issue. These subagents should get the PR title and description along with a description of the issue. The agent's job is to review the issue to validate that the stated issue is truly an issue with high confidence, and that it lies within the scope. For example, if an issue such as "variable is not defined" was flagged, the subagent's job would be to validate that is actually true in the code. Another example would be CLAUDE.md issues. The agent should validate that the CLAUDE.md rule that was violated is scoped for this file and is actually violated. Use sonnet subagents for every issue.
+4. For each issue found in the previous step, launch parallel subagents to validate the issue. These subagents should get the PR title and description along with a description of the issue. The agent's job is to follow the stated scenario through the code and decide whether it can really happen, and that the issue lies within the scope. Keep the issue when the scenario can occur and the code does not already handle it; reject it when the scenario is impossible, is handled elsewhere (cite where), or is outside the scope. For example, if an issue such as "variable is not defined" was flagged, the subagent's job would be to validate that is actually true in the code. Another example would be CLAUDE.md issues. The agent should validate that the CLAUDE.md rule that was violated is scoped for this file and is actually violated. Use sonnet subagents for every issue.
 
 5. Filter out any issues that were not validated in step 4. This step will give us our list of high signal issues for our review.
 

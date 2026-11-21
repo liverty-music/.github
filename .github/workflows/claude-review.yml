@@ -2,6 +2,14 @@ name: Reusable Claude Review
 
 on:
   workflow_call:
+    inputs:
+      # `subagents` (review/code.md) runs the review agents and a validator
+      # per candidate. `single` (review/code-single.md, the instructions
+      # before the subagents were required) is the fallback when that costs
+      # too much time or tokens: a caller sets it without editing this file.
+      review-profile:
+        type: string
+        default: subagents
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
@@ -110,8 +118,12 @@ jobs:
       #   `.openspec.yaml` metadata) gets the document review (review/docs.md);
       #   bug agents had nothing to find in OpenSpec plans and archives, which
       #   took 37 % of the review time.
-      # - Earlier findings: Claude's inline and conversation comments, so a
-      #   later review does not repeat them.
+      # - Earlier findings: Claude's inline and conversation comments, in
+      #   full, so a later review does not repeat them and can tell whether
+      #   the increment fixed one. Cut to a first line, a finding often kept
+      #   only its symptom, not its scenario.
+      # - Instructions: review/code.md, or review/code-single.md when the
+      #   caller sets `review-profile: single`.
       #
       # Any lookup that fails falls back to a full review: never less than
       # before.
@@ -127,6 +139,7 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           WORKFLOW_REF: ${{ github.workflow_ref }}
+          PROFILE: ${{ inputs.review-profile }}
         run: |
           set -u
           run_dir=.review-kit/run
@@ -136,6 +149,9 @@ jobs:
           if files=$(gh pr diff "$PR" --repo "$REPO" --name-only) && [ -n "$files" ] \
             && ! grep -qvE '\.md$|(^|/)\.openspec\.yaml$' <<<"$files"; then
             kind=docs
+          fi
+          if [ "$kind" = code ] && [ "$PROFILE" = single ]; then
+            kind=code-single
           fi
 
           scope=full
@@ -162,9 +178,9 @@ jobs:
 
           {
             gh api --paginate "repos/$REPO/pulls/$PR/comments" \
-              --jq '.[] | select(.user.login == "claude[bot]") | "- \(.path):\(.line // .original_line) — \(.body | split("\n")[0])"' 2>/dev/null || true
+              --jq '.[] | select(.user.login == "claude[bot]") | "## \(.path):\(.line // .original_line)\n\n\(.body)\n"' 2>/dev/null || true
             gh api --paginate "repos/$REPO/issues/$PR/comments" \
-              --jq '.[] | select(.user.login == "claude[bot]") | "- (summary) \(.body | gsub("\n"; " ") | .[0:300])"' 2>/dev/null || true
+              --jq '.[] | select(.user.login == "claude[bot]") | "## Summary comment\n\n\(.body)\n"' 2>/dev/null || true
           } > "$run_dir/previous-findings.md"
 
           {
@@ -222,12 +238,13 @@ jobs:
           # debug logging (`gh run rerun <id> --debug`): then every tool call and
           # its result is printed, so a denied command can be seen.
           show_full_output: ${{ runner.debug == '1' }}
-          # Reviewer charter: steers the review toward high-signal, whole-codebase
-          # consistency checks while suppressing nitpicks and review loops. The
+          # Reviewer charter: steers the review toward concrete, whole-codebase
+          # bug scenarios while suppressing nitpicks and review loops. The
           # per-repo CLAUDE.md "Review criteria" section supplies the domain rules.
-          # Sonnet, not the default Opus, to cut token use; review/*.md asks for
-          # sonnet subagents for the same reason.
+          # Sonnet for the main session and, as review/*.md asks, for the
+          # subagents, to cut token use. Before 2026-11-12 the bug agents and
+          # their validators ran on Opus (36 of 42 runs; median 3.56 USD).
           claude_args: >-
             --model claude-sonnet-5-5
-            --append-system-prompt "You are a senior reviewer. Optimize for signal, not volume. Report a finding only when you are confident it is real and materially affects correctness, security, data integrity, a public contract, or an explicit rule in the nearest CLAUDE.md Review criteria section; when unsure, stay silent. Never flag style, formatting, naming taste, or anything a linter, formatter, or type-checker already enforces; no nit-grade or consider-grade comments. You may read the wider codebase to judge a finding, but only report issues introduced or triggered by this diff; never comment on pre-existing problems on unchanged lines. Before flagging an inconsistency, grep for the established pattern and cite the file and line you compared against. One comment per unique issue; no duplicates; post a committable suggestion only when it fully fixes the issue. Idempotency: do not re-raise a point already made on this PR, and do not reopen resolved or outdated threads; never contradict your earlier review; if your assessment changed, say so once and move on. Skip generated or vendored paths and any line carrying an ai-review-ignore marker. Respect the PR stated intent; do not demand changes that conflict with its goal."
+            --append-system-prompt "You are a senior reviewer. Report a finding when you can show a concrete scenario in which the change goes wrong, and the code path that leads there (for a document: what a reader who acts on it would build wrong), and it materially affects correctness, security, data integrity, a public contract, or an explicit rule in the nearest CLAUDE.md Review criteria section. A scenario that needs a particular state (a retry, a concurrent request, a failed dependency, the first use) counts when that state can occur in production. Do not judge certainty by staying silent: the validation subagents decide whether a candidate is real. Never flag style, formatting, naming taste, or anything a linter, formatter, or type-checker already enforces; no nit-grade or consider-grade comments. You may read the wider codebase to judge a finding, but only report issues introduced or triggered by this diff; never comment on pre-existing problems on unchanged lines. Before flagging an inconsistency, grep for the established pattern and cite the file and line you compared against. One comment per unique issue; no duplicates; post a committable suggestion only when it fully fixes the issue. Idempotency: do not re-raise a point already made on this PR, and do not reopen resolved or outdated threads; never contradict your earlier review; if your assessment changed, say so once and move on. Skip generated or vendored paths and any line carrying an ai-review-ignore marker. Respect the PR stated intent; do not demand changes that conflict with its goal."
             --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"

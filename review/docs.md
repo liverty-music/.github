@@ -26,6 +26,8 @@ rule in a CLAUDE.md.
 - Only call a tool if it is required to complete the task. Every tool call should have a clear purpose.
 - Give every subagent the pull request title and description, the scope, and the paths of the increment diff and the previous-findings file.
 
+**The subagents are required.** Steps 1 to 3 launch subagents. Launch them, in the order given, even when the change looks small; do not review the documents yourself in place of the review agents. When step 2 returns candidate issues, do not end the run before the validation subagents of step 3 have reported; when it returns none, go on to step 5. A run in which the agents of steps 1 and 2 were not launched is a failed run. Launch the agents of one step in a single message so that they run in parallel.
+
 Follow these steps precisely:
 
 1. Launch a haiku agent to return a list of file paths (not their contents) for the root CLAUDE.md and any CLAUDE.md in a directory that contains a changed file.
@@ -38,7 +40,7 @@ Follow these steps precisely:
 
    Agent 3 (sonnet): CLAUDE.md compliance. Audit the changes against the CLAUDE.md files from step 1, considering for each file only the CLAUDE.md files that share a path with it or its parents. Quote the exact rule for each issue.
 
-   **Only HIGH SIGNAL issues.** If you are not certain an issue is real, do not flag it.
+   Report an issue when you can say what a reader who acts on the document would build wrong. You do not need to be certain: the validation step decides.
 
 3. For each issue, launch parallel subagents to validate it: that it is real, that it lies within the scope, and that it is not in the previous-findings file. Use sonnet for every issue.
 

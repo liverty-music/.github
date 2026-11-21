@@ -71,7 +71,9 @@ To do this, follow these steps precisely:
 
    In addition to the above, each subagent should be told the pull request title and description. This will help provide context regarding the author's intent.
 
-2. Merge the issues that two agents reported for the same cause. Then, for each remaining issue, launch one sonnet subagent to validate it; launch all of them in a single message. These subagents should get the PR title and description along with a description of the issue. The agent's job is to follow the stated scenario through the code and decide whether it can really happen, and that the issue lies within the scope. Keep the issue when the scenario can occur and the code does not already handle it; reject it when the scenario is impossible, is handled elsewhere (cite where), or is outside the scope. For example, if an issue such as "variable is not defined" was flagged, the subagent's job would be to validate that is actually true in the code. Another example would be CLAUDE.md issues. The agent should validate that the CLAUDE.md rule that was violated is scoped for this file and is actually violated.
+2. Merge the issues that two agents reported for the same cause. Then, for each remaining issue, launch one sonnet subagent to validate it; launch all of them in a single message. These subagents should get the PR title and description along with a description of the issue. The agent's job is to follow the stated scenario through the code and decide whether it can really happen, and that the issue lies within the scope. Keep the issue when the scenario can occur and the code does not already handle it; reject it when the scenario is impossible, is handled elsewhere (cite where), or is outside the scope. Two reasons are not grounds to reject:
+   - "It existed before." Keep the issue when the change makes the problem reachable, keeps it reachable on a path the change touches, or relies on it. Reject a pre-existing problem only when the change neither touches nor depends on the path where it occurs.
+   - "The change narrowed the window." Keep a race or timing issue when the interleaving can still occur in production, however short the window. Reject it only when the scenario cannot occur. For example, if an issue such as "variable is not defined" was flagged, the subagent's job would be to validate that is actually true in the code. Another example would be CLAUDE.md issues. The agent should validate that the CLAUDE.md rule that was violated is scoped for this file and is actually violated.
 
 3. Filter out any issues that were not validated in step 2. This step will give us our list of high signal issues for our review.
 
@@ -95,7 +97,7 @@ To do this, follow these steps precisely:
 
 Use this list when evaluating issues in Steps 1 and 2 (these are false positives, do NOT flag):
 
-- Pre-existing issues, including anything outside the scope of this review
+- Pre-existing issues that the change neither makes reachable, keeps reachable on a path it touches, nor relies on, and anything else outside the scope of this review
 - Something that appears to be a bug but is actually correct
 - Pedantic nitpicks that a senior engineer would not flag
 - Issues that a linter will catch (do not run the linter to verify)

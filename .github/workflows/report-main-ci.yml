@@ -1,0 +1,108 @@
+name: Reusable Report Main CI
+
+# Keeps one Issue, "CI failing on main", in step with the nightly CI result of
+# the calling repository. A failed night opens it (or comments on the open
+# one); a green night closes it, so each new outbreak opens a new Issue, which
+# is the event that starts the Claude routine that triages the failure
+# (routines/fix-main-ci.md). When the green night ran on a commit that failed
+# earlier in the same outbreak, the Issue gets the label `flaky` first.
+#
+# frontend and backend call it from a job that needs `ci-success`, with
+# `if: always() && github.event_name == 'schedule'`, and pass
+# `needs.ci-success.result`.
+#
+# Both callers are public, so anyone can open an Issue with this title or
+# comment on the real one. Only what this workflow's own identity wrote is
+# trusted: the open Issue is one with the title, the label `ci` and the author
+# `github-actions[bot]`, and failed commits are read only from its body and
+# from comments by `github-actions[bot]` (one `sha: <40 hex>` line per
+# report). No state lives outside the Issue.
+#
+# OpenSpec change fix-main-ci-failures-automatically, design D1.
+
+on:
+  workflow_call:
+    inputs:
+      # `needs.ci-success.result` of the caller: `failure` reports, `success`
+      # closes, anything else (a cancelled run) changes nothing.
+      result:
+        type: string
+        required: true
+      # Only a test caller sets this, so its Issues cannot touch the real one.
+      issue-title:
+        type: string
+        default: CI failing on main
+
+permissions:
+  issues: write
+
+jobs:
+  report:
+    name: Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Update the main CI Issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ inputs.result }}
+          TITLE: ${{ inputs.issue-title }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          bot="github-actions[bot]"
+
+          case "$RESULT" in
+            failure | success) ;;
+            *) echo "Result '$RESULT': nothing to report."; exit 0 ;;
+          esac
+
+          # `gh issue list` prints a GitHub App author as `app/<slug>`; the
+          # REST API used for comments prints `<slug>[bot]`.
+          issue=$(gh issue list --repo "$repo" --state open --label ci --limit 100 \
+              --json number,title,author \
+            | jq -r --arg t "$TITLE" \
+              '[.[] | select(.title == $t and .author.login == "app/github-actions")][0].number // empty')
+
+          if [ "$RESULT" = failure ]; then
+            report="The nightly CI run on \`main\` failed.
+
+          run: $RUN_URL
+          sha: $GITHUB_SHA"
+            if [ -n "$issue" ]; then
+              gh issue comment "$issue" --repo "$repo" --body "$report"
+              echo "Commented on #$issue."
+            else
+              for label in ci bug; do
+                gh label create "$label" --repo "$repo" --force \
+                  --color "$([ "$label" = ci ] && echo 0e8a16 || echo d73a4a)" >/dev/null
+              done
+              gh issue create --repo "$repo" --title "$TITLE" --label ci --label bug --body "$report"
+            fi
+            exit 0
+          fi
+
+          # success
+          if [ -z "$issue" ]; then
+            echo "No open Issue: nothing to close."
+            exit 0
+          fi
+
+          failed_shas=$( {
+            gh issue view "$issue" --repo "$repo" --json body --jq .body
+            gh api --paginate "repos/$repo/issues/$issue/comments" \
+              --jq ".[] | select(.user.login == \"$bot\") | .body"
+          } | grep -oE '^sha: [0-9a-f]{40}$' | cut -d' ' -f2 || true)
+
+          if grep -qx "$GITHUB_SHA" <<<"$failed_shas"; then
+            gh label create flaky --repo "$repo" --force --color fbca04 \
+              --description "Failed and passed on the same commit" >/dev/null
+            gh issue edit "$issue" --repo "$repo" --add-label flaky
+            echo "Labelled #$issue flaky: $GITHUB_SHA failed earlier."
+          fi
+          # No `sha:` line here: only failed commits are recorded that way.
+          gh issue close "$issue" --repo "$repo" \
+            --comment "The nightly CI run passed on \`${GITHUB_SHA}\`: $RUN_URL"
